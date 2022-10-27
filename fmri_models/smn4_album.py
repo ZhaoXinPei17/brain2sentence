@@ -28,11 +28,13 @@ class Album():
         self.result_path = args['path']['result_path']
         if not os.path.exists(self.result_path):
             os.makedirs(self.result_path)
+        self.encoding_model_path = args['path']['encoding_model_path']
         self.fmri_feature_corrs_path = args['path']['fmri_feature_corrs_path']
         self.embedding_path = args['path']['embedding_path']
         self.feature_path = args['path']['feature_path']
         self.time_path = args['path']['time_path']
         self.ref_time_path = args['path']['ref_time_path']
+
         self.encoding_method = args['encoding_model']['encoding_method']
         self.block_shuffle = args['encoding_model']['block_shuffle']
         self.blocklen = args['encoding_model']['blocklen']
@@ -40,6 +42,7 @@ class Album():
         self.inner_fold = args['encoding_model']['inner_fold']
         self.train_ratio = args['encoding_model']['train_ratio']
         self.test_ratio = args['encoding_model']['test_ratio']
+        
         self.word_rate_type = args['word_rate']['word_rate_type']
         self.layer_num = args['feature_convolve']['layer_num']
         self.convolve_type = args['feature_convolve']['convolve_type']

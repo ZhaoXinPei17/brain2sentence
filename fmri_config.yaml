@@ -4,6 +4,9 @@ path:
   fmri_path: /sdb/xpzhao/datasets/SMN4Lang/pku_fmri
   # ridge corrs of fmri * word_feature. used for voxel_top. $sub$ will be changed automatically.
   result_path: /sdb/xpzhao/zxps/brain2sentence/results/gpt_medium/offset
+
+  encoding_model_path: /sdb/xpzhao/zxps/brain2sentence/results/gpt_medium/offset/t_feature
+
   fmri_feature_corrs_path: /sdb/xpzhao/zxps/brain2sentence/results/gpt_medium/offset/t_feature/sub_$$_average.mat
   # embedding path of stimuli
   embedding_path: /sdb/xpzhao/datasets/SMN4Lang/annotations/embeddings/gpt/word-level
@@ -37,7 +40,7 @@ data:
   fmri_tr: 0.71
   fmri_tr_int: 71
   fmri_voxel_num: 59412
-  voxel_top_num: 5000
+  voxel_top_num: 10000
   feature_type: word_time_pair # used as the key of .mat file: ['word_time_pair']
   feature_abandon: 19 # first 'feature_abandon' TR of feature will be abandonned, equals 0 while nothing abandonned
   n_story: 5 # whole is 60
