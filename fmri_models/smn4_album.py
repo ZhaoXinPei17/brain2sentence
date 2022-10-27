@@ -5,7 +5,7 @@ from os.path import join
 import h5py
 import logging
 
-CONFIG = '/sdb/xpzhao/zxps/brain2char/config.yaml'
+CONFIG = '/sdb/xpzhao/zxps/brain2sentence/fmri_config.yaml'
 
 def load_ref_TRs(file_root):
     res = []

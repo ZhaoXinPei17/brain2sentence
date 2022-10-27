@@ -3,8 +3,8 @@ path:
   # fmri
   fmri_path: /sdb/xpzhao/datasets/SMN4Lang/pku_fmri
   # ridge corrs of fmri * word_feature. used for voxel_top. $sub$ will be changed automatically.
-  result_path: /sdb/xpzhao/zxps/brain2char/results/gpt_medium/offset
-  fmri_feature_corrs_path: /sdb/xpzhao/zxps/brain2char/results/gpt_medium/offset/t_feature/sub_$$_average.mat
+  result_path: /sdb/xpzhao/zxps/brain2sentence/results/gpt_medium/offset
+  fmri_feature_corrs_path: /sdb/xpzhao/zxps/brain2sentence/results/gpt_medium/offset/t_feature/sub_$$_average.mat
   # embedding path of stimuli
   embedding_path: /sdb/xpzhao/datasets/SMN4Lang/annotations/embeddings/gpt/word-level
   # feature path, saving features after feature_convolving
@@ -60,6 +60,6 @@ exp:
   use_cuda: False # false because of CUDA error: an illegal memory access was encountered
 
 report:
-  logging_file: /sdb/xpzhao/zxps/brain2char/logs/log
+  logging_file: /sdb/xpzhao/zxps/brain2sentence/logs/log
   plot_brain: False
   brain_template: None #/home/sdb/snwang/xhzhang/cross_lingual_syntax/01.thickness.32k_fs_LR.dscalar.nii
