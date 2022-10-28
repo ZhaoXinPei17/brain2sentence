@@ -1,7 +1,4 @@
 # init
-import logging
-import sys
-sys.path.append(f"/sdb/xpzhao/zxps") 
 
 import scipy.io as scio
 import torch

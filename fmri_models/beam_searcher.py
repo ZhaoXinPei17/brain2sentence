@@ -7,7 +7,6 @@ from smn4_album import Album
 from smn4_loader import FmriLoader
 import numpy as np
 
-
 class NucleusSamplingGenerator(Album):
     '''
         a royal inplementation of Huth 2022.
@@ -99,8 +98,6 @@ class NucleusSamplingGenerator(Album):
     def similarity(self, A, B):
         '''
             A and B: x * y np.array
-            
-
         '''
         assert A.shape[0] == B.shape[0] and A.shape[1] == B.shape[1]
 
@@ -114,21 +111,6 @@ class NucleusSamplingGenerator(Album):
             pass
         else:
             pass
-
-    def beam_search(self, scores, ) -> np.array:
-        '''
-            Search the best top_p from scores.
-        '''
-        sum_p = 0
-        probs = self.score2prob(scores)
-        sort_index = (np.argsort(probs))[::-1]
-
-        ind = 0
-        while sum_p <= self.top_p:
-            sum_p += probs(sort_index[ind])
-            ind += 1
-
-        return sort_index[: ind]
 
     def score2prob(self, scores, ):
         pass
