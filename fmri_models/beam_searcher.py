@@ -3,17 +3,24 @@ This file is for beam search decoder. Not only for brain.
 used for beam_searching from a set of candidates, and get the most possible sentences from them.
 
 '''
+import torch
 from smn4_album import Album
 from smn4_loader import FmriLoader
 import numpy as np
+from scipy.io import loadmat
+from os.path import join
 
 class NucleusSamplingGenerator(Album):
     '''
         a royal inplementation of Huth 2022.
         Use fMRI of story_i and output the most likely results of text_decoding
     '''
-    def __init__(self, ):
-        super().__init__()
+    def __init__(self, sub, **kwargs):
+        super().__init__(**kwargs)
+        self.sub = sub
+
+        encoding_weights_path = join(self.result_path, f"weight_sub{sub}.mat")
+        self.encoding_weights = loadmat(encoding_weights_path)["weights"]
 
     def forward(self, sub, story_index, word_rates: np.array):
         '''
@@ -24,8 +31,9 @@ class NucleusSamplingGenerator(Album):
         fmri = fmri_loader.load_one(sub=sub, story=story_index) # TR * voxels
         
         tr_len = self.ref_length[story_index - 1]
-        encoding_model = 0
-
+        encoding_model = lambda mat: np.matmul(mat, self.encoding_weights)
+        
+        self.encoding_weights
 
         seqs = [''] # list of seq
         ranks = [20] # list of int, ranks[s] is rank of seqs[s]
@@ -36,6 +44,8 @@ class NucleusSamplingGenerator(Album):
             continuations = []
             for s in range(len[seqs]):
                 prompt = seqs[s]
+                prompt_length = 0
+                continuation_length = 0
                 continuation_tmps = self.text_generate(prompt, prompt_length, continuation_length) # list
                 for c in continuation_tmps:
                     continuations.append(c)
