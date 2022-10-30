@@ -1,5 +1,3 @@
-# used for feature convolver
-# TIME of Word-time pairs and of fMRI-time pairs are not aligned. This model is used to solve this problem.
 
 import scipy.io as scio
 import h5py
@@ -14,19 +12,19 @@ from smn4_album import Album
 zs = lambda v: (v-v.mean())/v.std()
 
 class FeatureConvolver(Album):
-    def __init__(self):
-        super().__init__()
+    '''
+        TIME of Word-time pairs and of fMRI-time pairs are not aligned. This model is used to solve this problem.
+        After convolving, features will be aligned to fMRI. features: tr * dim, fmri: tr * n_voxel
+        Params:
+            convolve_type: convolve_method we take
+            layer: layer_num, we only choose this layer as our feature.
+            time_type: duration_time_type, only available when convolve_type == duration
+    '''
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.hrf = glm.first_level.spm_hrf(self.fmri_tr, self.fmri_tr_int)
 
     def forward(self, if_save=True, **kwargs):
-        '''
-            in_path: folder of embeddings
-            time_path: folder of saved time points
-            out_path: folder of results
-            ref_length: 
-            convolve_type: convolve method we take
-        '''
-
         convolve_type = self.convolve_type
         layer = self.layer_num
         time_type = self.duration_time_type
@@ -43,7 +41,7 @@ class FeatureConvolver(Album):
 
             time = scio.loadmat(join(self.time_path, f'story_{i}.mat'))
             start_time = np.squeeze(time['start'])
-            start_time = np.round(start_time * 100).astype('int') # use rint to avoid some unexpected error as: int(1.13*100) = 112
+            start_time = np.round(start_time * 100).astype('int') 
             end_time = np.squeeze(time['end'])
             end_time = np.round(end_time * 100).astype('int') 
 
@@ -121,5 +119,5 @@ class FeatureConvolver(Album):
                     join(self.result_path, f'story_{i}.mat'), matlab_compatible=True)
 
 if __name__ == "__main__":
-    feature_convolver = FeatureConvolver()
+    feature_convolver = FeatureConvolver(n_story=3)
     feature_convolver(if_save=False)

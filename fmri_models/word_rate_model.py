@@ -1,17 +1,8 @@
 
-# import logging
-# LOGGING_FILE = "/sdb/xpzhao/zxps/brain2char/logs/word_rate_log"
-# logging.basicConfig(filename= LOGGING_FILE, format= '%(asctime)s %(message)s', datefmt= '%m/%d/%Y %H:%M')
-import sys
-sys.path.append(f"/sdb/xpzhao/zxps") 
-
 from tqdm import tqdm
-from argparse import ArgumentParser
-from utils import FmriLoader, Album
-import torch
-import yaml
+from smn4_album import Album
+from smn4_loader import FmriLoader
 import scipy.io as scio
-import h5py
 from os.path import join
 from functools import reduce
 import numpy as np
@@ -21,23 +12,26 @@ zs = lambda v: (v-v.mean(0))/v.std(0)
 
 class WordRateModel(Album):
     '''
-        This word rate model is generated from 'Huth etc 2022 Method-word_rate_model'.
+        This word rate model is generated from 'Huth etc 2022 Method-word_rate_model', used to predict word rate of fMRI
 
+        sub: subject
         tr_list: list of tr delays. For example, tr_list = [1,2,3], then we concatenate the response 
             from (t+1, t+2, t+3) to predict the word rate at time t.
     '''
     def __init__(self, sub, tr_list, **kwargs) -> None:
-        super().__init__()
+        super().__init__(**kwargs)
         self.sub = sub
         self.tr_list = tr_list
+        self.fmri_loader = FmriLoader(**kwargs)
 
     def ridge_delay(self, word_rates):
         '''
             cat fmri from tr_list, and return to Weight: fMRI_cat_features * Weight = Word_rate
+            ! need to be zscored
         '''
         
-        fmri_loader = FmriLoader(self.sub)
-        fmri_datas, starts = fmri_loader.load()
+        fmri_loader = self.fmri_loader
+        fmri_datas, starts = fmri_loader(sub=self.sub)
 
         # cat fmri
         tr_max = self.tr_list[-1]
@@ -62,7 +56,10 @@ class WordRateModel(Album):
         word_rate_train = (reduce(lambda x, y: np.concatenate((x[:-tr_max], y), axis=0), word_rates))[:-tr_max]
         # print(fmri_train_data.shape, word_rate_train.shape)
 
-        print(f"fmri_datas.shape = {fmri_train_data.shape}, word_rates.shape = {word_rate_train.shape}. training word_rate_model...")
+        assert fmri_train_data.shape[0] == word_rate_train.shape[0]
+        # print(f"fmri_datas.shape = {fmri_train_data.shape}, word_rates.shape = {word_rate_train.shape}")
+        
+        # regression
         reg = linear_model.Ridge(alpha= 1., )
         reg.fit(fmri_train_data, word_rate_train, )
         # print(reg.coef_)
@@ -72,13 +69,14 @@ class WordRateModel(Album):
 
 class WordRateCounter(Album):
     '''
-        generated from feature_convolver.
-        This is used to count the word rate of stimuli, and return to an np.array (length: fMRI_tr)
-        two method is considered: one is counted as the paper, the other is using convolving.
+        This model is used to count the word rate of stimuli(ground truth), and return to an np.array (length: fMRI_tr)
+        two method is considered: one is counted as the paper, the other is using convolving(this method hasn't been inplemented.).
+        Params:
+            word_rate_method: (now we only have 'count_delays')
     '''
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         
     def count(self, **kwargs):
         '''
@@ -119,8 +117,8 @@ class WordRateCounter(Album):
 
 if __name__ == '__main__':
 
-    word_rate_counter = WordRateCounter()
-    word_rate_model = WordRateModel('01', [2,4,6,8,10,12])
+    word_rate_counter = WordRateCounter(n_story=3)
+    word_rate_model = WordRateModel('01', [2,4,6,8,10,12], n_story=3, voxel_top_num=5000)
 
     word_rates = word_rate_counter.count()
     word_rate_model.ridge_delay(word_rates)

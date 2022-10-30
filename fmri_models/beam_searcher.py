@@ -111,58 +111,7 @@ class NucleusSamplingGenerator(Album):
             pass
         else:
             pass
-
-    def score2prob(self, scores, ):
-        pass
-
-
-    def forward(self, candidates: list, remote_data, k, p, **kwargs) -> np.ndarray:
-        '''
-            return to index of beam_search
-            candidates: candidates of the generate texts
-            remote data: outside data using for extra judgement, like fMRI
-            k: limit_num of candidates
-            p: sum p of nucleus search
-        '''
-        c_len = len(candidates)
-        # get scores of candidates
-        scores = self.score_map(candidates, remote_data) # 1*L
-
-        # nucleus search, get the top p percent of the probability mass
-        # we treat scores as probabilities
-        
-        indexs = np.argsort(scores) # 1*L
-
-        return_indexs = []
-        sum_tmp = 0
-
-        for i in range(c_len):
-            index = indexs[i]
-            return_indexs.append(index) 
-            
-            sum_tmp += scores[index] # add the maximum from scores
-            if sum_tmp > p:
-                break
-
-        return np.array(return_indexs)
-
-    def score_map(self, candidates, remote_data) -> np.ndarray:
-        '''
-            calculate scores of all the candidates
-        '''
-        scores = np.zeros(len(candidates))
-
-        # tmp
-        score_std = self.score_std
-        for i in range(len(candidates)):
-            c = candidates[i]
-            scores[i] = score_std(c, remote_data)
-
-        return scores
-
-
-
-    
+  
 
 
 if __name__ == "__main__":

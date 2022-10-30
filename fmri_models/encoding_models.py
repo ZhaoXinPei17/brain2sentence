@@ -14,8 +14,89 @@ import random
 import nibabel as nib
 import os
 from os.path import join
+from smn4_album import Album
+from smn4_loader import FmriLoader, FeatureLoader
 
 zs = lambda v: (v-v.mean(0))/v.std(0)
+
+class EncodingModel(Album):
+    def __init__(self, sub):
+        super().__init__()
+        self.sub = sub
+
+    def load_fmri(self):
+        fmri_loader = FmriLoader()
+        fmri_loader.voxel_top_num = None # encoding models don't need voxel_top
+        return fmri_loader(sub=self.sub)
+
+    def load_feature(self):
+        feature_loader = FeatureLoader()
+        return feature_loader()
+
+    def load_multi_feature(self):
+        pass
+
+    def load_test(self):
+        pass
+
+class RidgeModel(Album):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, train_fmri, train_feature, 
+        valid_fmri, valid_feature, alphas, singcutoff=1e-10):
+        _, n_dim = train_feature.shape
+        if n_dim == 1:
+            return self.ridge_1dim(train_fmri, train_feature, 
+                valid_fmri, valid_feature, alphas,)
+        else:
+            return self.ridge_multidim(train_fmri, train_feature, 
+                valid_fmri, valid_feature, alphas, singcutoff=1e-10)
+
+    def ridge_multidim(self, train_fmri, train_feature, valid_fmri, valid_feature, alphas, singcutoff=1e-10):
+        """
+            this function can be used on features with more than 1 dimension, 
+            such as word embeddings (BERT, elmo, etc.), pos tags, 
+            or other semantic features
+        """
+        
+        U,S,V = torch.svd(train_feature) 
+        
+        ngoodS = torch.sum(S>singcutoff)
+        U = U[:,:ngoodS]
+        S = S[: ngoodS]
+        V = V[:,:ngoodS]
+
+        alphas = torch.tensor(alphas)
+
+        UR = torch.matmul(U.transpose(0, 1), train_fmri)
+        PVh = torch.matmul(valid_feature, V)
+
+        zvalid_fmri = zs(valid_fmri)
+        Rcorrs = [] # Holds training correlations for each alpha
+        for a in alphas:
+            D = S/(S**2+a**2) # Reweight singular vectors by the ridge parameter
+            pred = torch.matmul(mult_diag(D, PVh, left=False), UR)
+            Rcorr = (zvalid_fmri*zs(pred)).mean(0)                
+            Rcorr[torch.isnan(Rcorr)] = 0
+            Rcorrs.append(Rcorr)
+        
+        return Rcorrs
+
+    def ridge_1dim(self, train_fmri, train_feature, valid_fmri, valid_feature, alphas):
+        Rcorrs = []
+        for alpha in alphas:
+            S = torch.matmul(train_feature.transpose(0,1), train_feature)
+            S = train_feature/(S+alpha**2)
+            W = torch.matmul(S.transpose(0,1), train_fmri)
+            pred = torch.matmul(valid_feature, W)
+            zPresp = zs(valid_fmri)
+            Rcorr = (zPresp*zs(pred)).mean(0)
+            Rcorr[torch.isnan(Rcorr)] = 0
+            Rcorrs.append(Rcorr)
+        
+        return Rcorrs
+
 
 class encoding_base:
     """ 

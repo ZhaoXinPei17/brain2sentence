@@ -11,11 +11,15 @@ from smn4_album import Album
 class FmriLoader(Album):
     '''
         Load fmri from smn4 datasets.
+        voxel_top_num: is None if not voxel_top
     '''
     def __init__(self, **kwargs) -> None:
-        super().__init__()
+        super().__init__(**kwargs)
 
     def forward(self, sub):
+        return self.load(sub=sub)
+
+    def load(self, sub):
         '''
             Return:
             train_fmri: (n_TRs, n_voxels); 
@@ -75,8 +79,40 @@ class FmriLoader(Album):
 
         return torch.FloatTensor(single_fmri)
 
+class FeatureLoader(Album):
+    '''
+        Load feature from smn4 datasets.
+    '''
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, sub):
+        return self.load(sub=sub)
+
+    def load(self, ):
+        '''
+            Return:
+            train_feature: (n_TRs, feature_dim)
+        '''
+        train_feature = torch.tensor([])
+        feature_type = self.feature_type
+        feature_abandon = self.feature_abandon
+        starts = [0]
+        for i in tqdm(self.story_range, desc=f'loading stimulus from {self.feature_path} ...'):
+            if i == self.test_id:
+                continue
+            feature_file = join(self.feature_path, f'story_{i}.mat')
+                
+            data = h5py.File(feature_file, 'r')
+            single_feature = torch.tensor(np.array(data[feature_type])[: , feature_abandon: ]).transpose(0, 1)
+            train_feature = torch.cat([train_feature, single_feature])
+            starts.append(train_feature.shape[0])
+                
+            # self.log.info(f"story = {i}, single_feature_tr = {single_feature.shape[0]}, train_feature_tr = {train_feature.shape[0]}")
+            
+        return train_feature, starts
 
 if __name__ == '__main__':
     
-    fmri_loader = FmriLoader()
+    fmri_loader = FmriLoader(voxel_top_num=None)
     print((fmri_loader.load_one(sub='02', story=1)).shape)

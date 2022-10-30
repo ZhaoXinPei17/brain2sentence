@@ -28,11 +28,11 @@ encoding_model:
   test_ratio: 0.1 # used to split data into (train&valid)/test
 
 word_rate:
-  word_rate_type: count_delays # choices: count_delays, convolve
+  word_rate_method: count_delays # choices: count_delays, convolve
 
 feature_convolve:
   layer_num: 18 # get feature from this layer
-  convolve_type: duration # choices: offset, duration, start_end_duration
+  convolve_type: offset # choices: offset, duration, start_end_duration
   duration_time_type: start
 
 # basic config of our data
@@ -43,7 +43,7 @@ data:
   voxel_top_num: 10000
   feature_type: word_time_pair # used as the key of .mat file: ['word_time_pair']
   feature_abandon: 19 # first 'feature_abandon' TR of feature will be abandonned, equals 0 while nothing abandonned
-  n_story: 5 # whole is 60
+  n_story: 60 # whole is 60
   test_id: -1 # no designated test stimuli if test_id == -1
 
 # use for text generation
