@@ -19,27 +19,10 @@ from smn4_loader import FmriLoader, FeatureLoader
 
 zs = lambda v: (v-v.mean(0))/v.std(0)
 
-class EncodingModel(Album):
-    def __init__(self, sub):
-        super().__init__()
-        self.sub = sub
-
-    def load_fmri(self):
-        fmri_loader = FmriLoader()
-        fmri_loader.voxel_top_num = None # encoding models don't need voxel_top
-        return fmri_loader(sub=self.sub)
-
-    def load_feature(self):
-        feature_loader = FeatureLoader()
-        return feature_loader()
-
-    def load_multi_feature(self):
-        pass
-
-    def load_test(self):
-        pass
-
 class RidgeModel(Album):
+    '''
+        Ridge model.
+    '''
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -51,7 +34,7 @@ class RidgeModel(Album):
                 valid_fmri, valid_feature, alphas,)
         else:
             return self.ridge_multidim(train_fmri, train_feature, 
-                valid_fmri, valid_feature, alphas, singcutoff=1e-10)
+                valid_fmri, valid_feature, alphas, singcutoff)
 
     def ridge_multidim(self, train_fmri, train_feature, valid_fmri, valid_feature, alphas, singcutoff=1e-10):
         """
@@ -97,92 +80,27 @@ class RidgeModel(Album):
         
         return Rcorrs
 
-
-class encoding_base:
+class EncodingModel(Album):
     """ 
         perform voxel-wise encoding 
     """
-
-    def __init__(self, args):
-        self.method = args['model']['method']
-        self.block_shuffle = args['model']['block_shuffle']
-        self.blocklen = args['model']['blocklen']
-        # self.alphas = args['model']['alphas']
-        self.nfold = args['model']['nfold'] # non-cross if nfold == 1
-        self.inner_fold = args['model']['inner_fold'] # must > 1, or it would be non-nested cv
-
-        self.fmri_path = args['data']['fmri_path']
-        self.fmri_voxel_num = args['data']['fmri_voxel_num']
-        self.feature_path = args['data']['feature_path']
-        self.feature_type = args['data']['feature_type']
-        self.feature_abandon = args['data']['feature_abandon']
-        self.n_story = args['data']['n_story']
-        self.story_range = range(1, self.n_story + 1)
-        self.language = args['data']['language']
-        self.test_id = args['data']['test_id'] # no designated test stimuli if test_id == -1
-
-        self.cuda0 = args['exp']['cuda0']
-        self.cuda1 = args['exp']['cuda1']
-        self.use_cuda = args['exp']['use_cuda']
-
-        self.plot_brain = args['report']['plot_brain']
-        self.brain_template = args['report']['brain_template']
-        self.result_dir = args['report']['result_dir']
-
-        if not os.path.exists(self.result_dir):
-            os.makedirs(self.result_dir)
+    def __init__(self, sub, **kwargs):
+        super().__init__(**kwargs)
+        self.sub = sub
+        self.fmri_loader = FmriLoader(**kwargs)
+        self.feature_loader = FeatureLoader(**kwargs)
 
     def load_fmri(self):
-        '''
-        Return:
-            train_fmri: (n_TRs, n_voxels); 
-            starts: list, the start index of each story in the fmri_path;
-        '''
-        train_fmri = torch.tensor([])
-        starts = [0]
-        for i in tqdm(self.story_range, desc=f'loading fmri from {self.fmri_path} ...'):
-            if i == self.test_id:
-                continue
-            fmri_file = join(self.fmri_path, self.sub, f'story_{i}.mat')
-            data = h5py.File(fmri_file, 'r')
-
-            single_fmri = np.array(data['fmri_response'])
-            train_fmri = torch.cat([train_fmri, torch.FloatTensor(single_fmri)])
-            starts.append(train_fmri.shape[0])
-            logging.info(f"story = {i}, single_fmri_tr = {single_fmri.shape[0]}, train_fmri_tr = {train_fmri.shape[0]}")
-
-            
-        return train_fmri, starts
+        fmri_loader = self.fmri_loader
+        return fmri_loader.load(sub=self.sub)
 
     def load_feature(self):
-        '''
-        Return:
-            train_feature: (n_TRs, feature_dim)
-        '''
-        train_feature = torch.tensor([])
-        feature_type = self.feature_type
-        feature_abandon = self.feature_abandon
-        starts = [0]
-        if self.language == 'zh' or self.language == 'en':
-            for i in tqdm(self.story_range, desc=f'loading stimulus from {self.feature_path} ...'):
-                if i == self.test_id:
-                    continue
-                feature_file = join(self.feature_path, f'story_{i}.mat')
-                
-                data = h5py.File(feature_file, 'r')
-                single_feature = torch.tensor(np.array(data[feature_type])[: , feature_abandon: ]).transpose(0, 1)
-                train_feature = torch.cat([train_feature, single_feature])
-                starts.append(train_feature.shape[0])
-                
-                logging.info(f"story = {i}, single_feature_tr = {single_feature.shape[0]}, train_feature_tr = {train_feature.shape[0]}")
-
-        else:
-            raise('Unknown language!')
-            
-        return train_feature, starts
+        feature_loader = self.feature_loader
+        return feature_loader.load()
 
     def load_multi_feature(self, features):
         '''
+        need rewriting.
         Return:
             train_feature: (n_features, n_TRs, feature_dim)
         '''
@@ -217,8 +135,7 @@ class encoding_base:
         test_fmri = torch.tensor(data['fmri_response'])
         return test_fmri, test_feature
 
-    def ridge_multidim(self, train_fmri, train_feature, valid_fmri, valid_feature, alphas,
-                cuda0=0, cuda1=1, use_cuda=False, singcutoff=1e-10):
+    def ridge_multidim(self, train_fmri, train_feature, valid_fmri, valid_feature, alphas, singcutoff=1e-10):
         """
             this function can be used on features with more than 1 dimension, 
             such as word embeddings (BERT, elmo, etc.), pos tags, 
@@ -232,26 +149,17 @@ class encoding_base:
         S = S[:ngoodS]
         V = V[:,:ngoodS]
 
-        if use_cuda:
-            alphas = torch.tensor(alphas).cuda(cuda0)
-        else:
-            alphas = torch.tensor(alphas)
+        alphas = torch.tensor(alphas)
 
-        if use_cuda:
-            UR = torch.matmul(U.transpose(0, 1).cuda(cuda1), train_fmri).cuda(cuda0)
-            PVh = torch.matmul(valid_feature, V)
-        else:
-            UR = torch.matmul(U.transpose(0, 1), train_fmri)
-            PVh = torch.matmul(valid_feature, V)
+        UR = torch.matmul(U.transpose(0, 1), train_fmri)
+        PVh = torch.matmul(valid_feature, V)
 
         zvalid_fmri = zs(valid_fmri)
         Rcorrs = [] ## Holds training correlations for each alpha
         for a in alphas:
             D = S/(S**2+a**2) ## Reweight singular vectors by the ridge parameter
-            if use_cuda:
-                pred = torch.matmul(mult_diag(D, PVh, left=False), UR)
-            else:
-                pred = torch.matmul(mult_diag(D, PVh, left=False), UR)
+            
+            pred = torch.matmul(mult_diag(D, PVh, left=False), UR)
             Rcorr = (zvalid_fmri*zs(pred)).mean(0)                
             Rcorr[torch.isnan(Rcorr)] = 0
             Rcorrs.append(Rcorr)
@@ -289,13 +197,12 @@ class encoding_base:
         # return np.array(list(itools.chain(*indblocks)))
         return list(itools.chain(*indblocks))
 
-class encoding_cv(encoding_base):
-    def __init__(self, args, alphas, sub):
-        super(encoding_cv, self).__init__(args)
-        self.sub = sub
+class EncodingCVModel(EncodingModel):
+    def __init__(self, alphas, **kwargs):
+        super().__init__(**kwargs)
         self.alphas = alphas
         try:
-            self.features = args['data']['features']
+            self.features = self.args['data']['features']
         except KeyError: # KeyError: 'features'
             self.features = []
             
@@ -307,12 +214,13 @@ class encoding_cv(encoding_base):
             total_feature, starts = self.load_feature()
         total_fmri, starts = self.load_fmri()
         
-        if self.method == 'nested_cv':
+        if self.encoding_method == 'nested_cv':
             corrs = self.ridge_nested_cv(total_fmri, total_feature)
-        elif self.method == 'cv':
+        elif self.encoding_method == 'cv':
             corrs = self.ridge_cv(total_fmri, total_feature, starts)
         else:
             raise('Unsupported training method (only "nested_cv" and "cv" are supported)!')
+        
         if self.plot_brain:
             self.plot_brain_corrs(corrs)
 
@@ -359,6 +267,7 @@ class encoding_cv(encoding_base):
             U,S,V = torch.svd(total_feature[inner_inds])
             UR = torch.matmul(U.transpose(0, 1), total_fmri[inner_inds])
             wt = reduce(torch.matmul, [V, torch.diag(S/(S**2+bestalpha**2)), UR])
+            print(wt.shape); input()
             pred = torch.matmul(test_feature, wt)
             corrs = (zs(pred)*zs(test_fmri)).mean(0)
             test_corrs.append(corrs)
@@ -433,18 +342,10 @@ class encoding_cv(encoding_base):
         scio.savemat(savefile, {'test_corrs':np.array(corrs.cpu())})
         return np.array(corrs.cpu())
 
-
 if __name__ == "__main__":
-
-    argp = ArgumentParser()
-    argp.add_argument('--exp_config', help='experimental config')
-    argp.add_argument('--subs', nargs='+', default=['01'], help='subject label')
-    
-    cli_args = argp.parse_args()
-    args = yaml.load(open(cli_args.exp_config), Loader=yaml.FullLoader)
 
     alphas = np.logspace(-3, 3, 20)
 
-    for sub in cli_args.subs:
-        encoding = encoding_cv(args, alphas, sub)
+    for sub in ['01']:
+        encoding = EncodingCVModel(sub=sub, alphas=alphas)
         encoding.run_ridge()
