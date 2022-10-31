@@ -9,3 +9,7 @@
 pass
 
 # Models
+
+## word_rate_model
+
+    need rewriting, need uniformization

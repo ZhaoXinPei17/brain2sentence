@@ -22,6 +22,7 @@ class Album():
 
 
     def __init__(self, 
+                all_args = args, 
                 fmri_path = args['path']['fmri_path'], 
                 result_path = args['path']['result_path'],
                 encoding_model_path = args['path']['encoding_model_path'], 
@@ -53,6 +54,8 @@ class Album():
                 feature_abandon = args['data']['feature_abandon'],
                 n_story = args['data']['n_story'],
                 test_id = args['data']['test_id'],
+                
+                continuation_top_k = args['generate']['continuation_top_k'], 
                 max_continuation = args['generate']['max_continuation'],
                 top_p = args['generate']['top_p'],
                 gpt_model_path = args['generate']['gpt_model_path'],
@@ -63,6 +66,8 @@ class Album():
                 plot_brain = args['report']['plot_brain'],
                 brain_template = args['report']['brain_template'],
             **kwargs):
+
+        self.args = all_args
 
         self.fmri_path = fmri_path
         self.result_path = result_path
@@ -96,6 +101,8 @@ class Album():
         self.feature_abandon = feature_abandon
         self.n_story = n_story
         self.test_id = test_id
+        
+        self.continuation_top_k = continuation_top_k
         self.max_continuation = max_continuation
         self.top_p = top_p
         self.gpt_model_path = gpt_model_path
@@ -106,12 +113,8 @@ class Album():
         self.plot_brain = plot_brain
         self.brain_template = brain_template
 
-        logger = logging.getLogger()
-        file_handler = logging.FileHandler(
-            filename=self.logging_file, encoding='utf-8')
-        file_handler.setFormatter(logging.Formatter(
-            fmt='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M'))
-        logger.addHandler(file_handler)
+        logger = logging.getLogger('simpleExample')
+        logging.basicConfig(filename=logging_file, level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M', )
         self.log = logger
 
         self.ref_length = load_ref_TRs(ref_time_path)
@@ -122,3 +125,9 @@ class Album():
 
     def forward(self, **kwargs):
         pass
+
+
+if __name__ == '__main__':
+    a = Album()
+    print(a.log.info('test'))
+    

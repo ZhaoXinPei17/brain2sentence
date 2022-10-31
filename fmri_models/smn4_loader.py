@@ -23,7 +23,7 @@ class FmriLoader(Album):
         '''
             Return:
             train_fmri: (n_TRs, n_voxels); 
-            starts: list, the start index of each story in the fmri_path. len = n_story + 1
+            starts: (n_story + 1, ), the start index of each story in the fmri_path. 
         '''
         voxel_top_path = (self.fmri_feature_corrs_path).replace("$$", sub)
         train_fmri = torch.tensor([])
@@ -54,6 +54,9 @@ class FmriLoader(Album):
             starts.append(train_fmri.shape[0])
             # print(f"story = {i}, single_fmri_shape = {single_fmri.shape}, train_fmri_shape = {train_fmri.shape}")
 
+        assert train_fmri.shape[0] == sum(self.ref_length[ : self.n_story]), \
+            f"Unmatch: train_fmri_tr = {train_fmri.shape[0]}, reference_tr = {sum(self.ref_length[ : self.n_story])}"
+        
         return train_fmri, starts
 
     def load_one(self, sub, story: int):
@@ -96,7 +99,6 @@ class FeatureLoader(Album):
         '''
         train_feature = torch.tensor([])
         feature_type = self.feature_type
-        feature_abandon = self.feature_abandon
         starts = [0]
         for i in tqdm(self.story_range, desc=f'loading stimulus from {self.feature_path} ...'):
             if i == self.test_id:
@@ -104,7 +106,7 @@ class FeatureLoader(Album):
             feature_file = join(self.feature_path, f'story_{i}.mat')
                 
             data = h5py.File(feature_file, 'r')
-            single_feature = torch.tensor(np.array(data[feature_type])[: , feature_abandon: ]).transpose(0, 1)
+            single_feature = torch.tensor(np.array(data[feature_type])).transpose(0, 1)
             train_feature = torch.cat([train_feature, single_feature])
             starts.append(train_feature.shape[0])
                 

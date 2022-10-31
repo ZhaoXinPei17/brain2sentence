@@ -183,7 +183,7 @@ class EncodingModel(Album):
     def plot_brain_corrs(self, corrs):
         base = nib.load(self.brain_template)
         corr_nii = nib.Cifti2Image(corrs.reshape(1, self.fmri_voxel_num), base.header)
-        nii_name = self.result_dir+self.language+'_'+self.sub+'_'+self.feature_type+'_'+self.method+'.dscalar.nii'
+        nii_name = self.result_path+self.language+'_'+self.sub+'_'+self.feature_type+'_'+self.method+'.dscalar.nii'
         corr_nii.to_filename(nii_name)
 
     def block_shuffle_inds(self, nTR):
@@ -198,9 +198,12 @@ class EncodingModel(Album):
         return list(itools.chain(*indblocks))
 
 class EncodingCVModel(EncodingModel):
-    def __init__(self, alphas, **kwargs):
+
+    def __init__(self, alphas, is_corrs_saved=False, is_weights_saved=False, **kwargs):
         super().__init__(**kwargs)
         self.alphas = alphas
+        self.is_corrs_saved = is_corrs_saved
+        self.is_weights_saved = is_weights_saved
         try:
             self.features = self.args['data']['features']
         except KeyError: # KeyError: 'features'
@@ -258,8 +261,7 @@ class EncodingCVModel(EncodingModel):
                 if n_dim == 1:
                     Rcorrs = self.ridge_1dim(train_fmri, train_feature, valid_fmri, valid_feature, self.alphas)
                 else:
-                    Rcorrs = self.ridge_multidim(train_fmri, train_feature, valid_fmri, valid_feature, \
-                        self.alphas, self.cuda0, self.cuda1, self.use_cuda)
+                    Rcorrs = self.ridge_multidim(train_fmri, train_feature, valid_fmri, valid_feature, self.alphas, )
                 val_corrs.append(torch.stack(Rcorrs))
             val_corrs = torch.stack(val_corrs)  
             max_ind = torch.argmax(val_corrs.mean(2).mean(0))
@@ -267,24 +269,25 @@ class EncodingCVModel(EncodingModel):
             U,S,V = torch.svd(total_feature[inner_inds])
             UR = torch.matmul(U.transpose(0, 1), total_fmri[inner_inds])
             wt = reduce(torch.matmul, [V, torch.diag(S/(S**2+bestalpha**2)), UR])
-            print(wt.shape); input()
             pred = torch.matmul(test_feature, wt)
             corrs = (zs(pred)*zs(test_fmri)).mean(0)
             test_corrs.append(corrs)
 
         test_corrs = torch.stack(test_corrs)
-        savefile = join(self.result_dir, f"{self.language}_sub{self.sub}_{self.feature_type}_{self.method}.mat")
-        scio.savemat(savefile, {'test_corrs':np.array(test_corrs.cpu())})
-        savefile = join(self.result_dir, f"{self.language}_sub{self.sub}_{self.feature_type}_{self.method}_average.mat")
-        scio.savemat(savefile, {'test_corrs':np.array(test_corrs.mean(0).cpu())})
-        return np.array(test_corrs.mean(0).cpu())
+        if self.is_corrs_saved:
+            savefile = join(self.result_path, f"sub{self.sub}.mat")
+            scio.savemat(savefile, {'test_corrs':np.array(test_corrs)})
+            savefile = join(self.result_path, f"sub{self.sub}_average.mat")
+            scio.savemat(savefile, {'test_corrs':np.array(test_corrs.mean(0))})
+        return np.array(test_corrs.mean(0))
         
     def ridge_cv(self, total_fmri, total_feature, starts):
         """ 
-        normal cross-validation, which is applicable to situations with
-        designated test set
-        Return: corrs on test set
+            normal cross-validation, which is applicable to situations with
+            designated test set
+            Return: corrs on test set
         """
+        assert total_fmri.shape[0] == total_feature.shape[0]
         nTR, n_dim = total_feature.shape
         if self.block_shuffle:
             inds = self.block_shuffle_inds(nTR)
@@ -294,11 +297,12 @@ class EncodingCVModel(EncodingModel):
         if self.test_id > -1:
             test_fmri, test_feature = self.load_test()
         else:
-            test_len = nTR*self.test_ratio
+            test_len = round(nTR*self.test_ratio)
             test_inds = inds[:test_len]
             test_fmri = total_fmri[test_inds]
             test_feature = total_feature[test_inds]
             inds = inds[test_len:]
+
         if self.nfold == 1:
             train_inds = inds[:len(inds)*self.train_ratio]
             valid_inds = inds[len(inds)*self.train_ratio:]
@@ -309,8 +313,7 @@ class EncodingCVModel(EncodingModel):
             if n_dim == 1:
                 corrs = self.ridge_1dim(train_fmri, train_feature, valid_fmri, valid_feature, self.alphas)
             else:
-                corrs = self.ridge_multidim(train_fmri, train_feature, valid_fmri, valid_feature, \
-                                    self.alphas, self.cuda0, self.cuda1, self.use_cuda)
+                corrs = self.ridge_multidim(train_fmri, train_feature, valid_fmri, valid_feature, self.alphas, )
         else:
             val_corrs = []
             foldlen = int(len(inds)/self.nfold)
@@ -324,28 +327,30 @@ class EncodingCVModel(EncodingModel):
                 if n_dim == 1:
                     Rcorrs = self.ridge_1dim(train_fmri, train_feature, valid_fmri, valid_feature, self.alphas)
                 else:
-                    Rcorrs = self.ridge_multidim(train_fmri, train_feature, valid_fmri, valid_feature, \
-                        self.alphas, self.cuda0, self.cuda1, self.use_cuda)
+                    Rcorrs = self.ridge_multidim(train_fmri, train_feature, valid_fmri, valid_feature, self.alphas, )
                 val_corrs.append(torch.stack(Rcorrs))
+            
             val_corrs = torch.stack(val_corrs)  
             max_ind = torch.argmax(val_corrs.mean(2).mean(1))
             bestalpha = self.alphas[max_ind]  
-            U,S,V = torch.svd(total_feature)
-            # print(U.shape, S.shape, V.shape)
-            # input()
+            U,S,V = torch.svd(total_feature) #; print(U.shape, S.shape, V.shape); input()
             UR = torch.matmul(U.transpose(0, 1), total_fmri)
             wt = reduce(torch.matmul, [V, torch.diag(S/(S**2+bestalpha**2)), UR])
             pred = torch.matmul(test_feature, wt)
             corrs = (zs(pred)*zs(test_fmri)).mean(0)
         
-        savefile = join(self.result_dir, f"{self.language}_sub{self.sub}_{self.feature_type}_{self.method}.mat")
-        scio.savemat(savefile, {'test_corrs':np.array(corrs.cpu())})
-        return np.array(corrs.cpu())
+        if self.is_weights_saved:
+            savefile = join(self.result_path, f"weight_sub{self.sub}.mat")
+            scio.savemat(savefile, {'weights':np.array(wt)})
+        if self.is_corrs_saved:
+            savefile = join(self.result_path, f"sub{self.sub}.mat")
+            scio.savemat(savefile, {'test_corrs':np.array(corrs)})
+        return np.array(corrs)
 
 if __name__ == "__main__":
 
     alphas = np.logspace(-3, 3, 20)
 
     for sub in ['01']:
-        encoding = EncodingCVModel(sub=sub, alphas=alphas)
+        encoding = EncodingCVModel(n_story=10, encoding_method='cv', sub=sub, alphas=alphas, is_weights_saved=True)
         encoding.run_ridge()
