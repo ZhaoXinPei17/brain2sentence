@@ -1,0 +1,68 @@
+# path: need tuning when some configs are changed
+path: 
+  # fmri
+  meg_path: /sdb/xpzhao/datasets/SMN4Lang/pku_fmri
+  # ridge corrs of fmri * word_feature. used for voxel_top. $sub$ will be changed automatically.
+  result_path: /home/jczheng/fmri_meg_decode_combine/data/feature_result
+
+  encoding_model_path: /sdb/xpzhao/zxps/brain2sentence/results/gpt_medium/offset/t_feature
+
+  fmri_feature_corrs_path: /sdb/xpzhao/zxps/brain2sentence/results/gpt_medium/offset/t_feature/sub_$$_average.mat
+  # embedding path of stimuli
+  embedding_path: /home/jczheng/fmri_meg_decode_combine/data/gpt_word_embedding
+  # feature path, saving features after feature_convolving
+  feature_path: /home/jczheng/fmri_meg_decode_combine/data/feature_result
+  # time points
+  time_path: /home/jczheng/fmri_meg_decode_combine/data/wordlevel_timealign
+  # reference time path. These shapes will be used to ensure the time_align.
+  ref_time_path: /sdb/xpzhao/datasets/SMN4Lang/ref_length_of_fmri
+
+encoding_model:
+  encoding_method: nested_cv # choices: nested_cv, cv
+  block_shuffle: True
+  blocklen: 100
+  nfold: 10 # non-cross if nfold == 1
+  # alphas: 
+  inner_fold: 10 # must > 1, or it would be non-nested cv
+  train_ratio: 0.9 # used to split data into train/valid only if not cross validation
+  test_ratio: 0.1 # used to split data into (train&valid)/test
+
+word_rate:
+  word_rate_type: count_delays # choices: count_delays, convolve
+
+feature_convolve:
+  layer_num: 18 # get feature from this layer
+  convolve_type: duration # choices: offset, duration, start_end_duration
+  duration_time_type: start
+
+# basic config of our data
+data: 
+  fmri_tr: 0.71
+  fmri_tr_int: 71
+  fmri_voxel_num: 59412
+  voxel_top_num: 10000
+  feature_type: word_time_pair # used as the key of .mat file: ['word_time_pair']
+  feature_abandon: 19 # first 'feature_abandon' TR of feature will be abandonned, equals 0 while nothing abandonned
+  n_story: 3 # whole is 60
+  test_id: -1 # no designated test stimuli if test_id == -1
+
+# use for text generation
+generate:
+  max_continuation: 5
+  top_p: 0.95
+  gpt_model_path: /sdb/xpzhao/models/GPT-chinese
+  gpt_type: cgpt_medium
+  gpt_args:
+    do_sample: True
+    temperature: 1.5
+    top_k: 3
+    top_p: 0.95
+    # repetition_penalty: 1.0
+
+exp:
+  use_cuda: False # false because of CUDA error: an illegal memory access was encountered
+
+report:
+  logging_file: /home/jczheng/fmri_meg_decode_combine/logs/log
+  plot_brain: False
+  brain_template: None #/home/sdb/snwang/xhzhang/cross_lingual_syntax/01.thickness.32k_fs_LR.dscalar.nii
