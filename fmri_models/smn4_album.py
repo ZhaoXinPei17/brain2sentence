@@ -20,114 +20,94 @@ class Album():
     '''
     args = yaml.load(open(CONFIG), Loader=yaml.FullLoader)
 
-
     def __init__(self, 
-                all_args = args, 
-                fmri_path = args['path']['fmri_path'], 
-                result_path = args['path']['result_path'],
-                encoding_model_path = args['path']['encoding_model_path'], 
-                fmri_feature_corrs_path = args['path']['fmri_feature_corrs_path'],                
-                embedding_path = args['path']['embedding_path'],
-                feature_path = args['path']['feature_path'],
-                time_path = args['path']['time_path'],
-                ref_time_path = args['path']['ref_time_path'],
+        fmri_path = args['fmri_path'], 
+        result_path = args['result_path'], 
+        encoding_model_path = args['encoding_model_path'], 
+        fmri_feature_corrs_path = args['fmri_feature_corrs_path'], 
+        embedding_path = args['embedding_path'], 
+        feature_path = args['feature_path'], 
+        time_path = args['time_path'], 
+        ref_time_path = args['ref_time_path'], 
+        encoding_method = args['encoding_method'], 
+        block_shuffle = args['block_shuffle'], 
+        blocklen = args['blocklen'], 
+        nfold = args['nfold'], 
+        inner_fold = args['inner_fold'], 
+        train_ratio = args['train_ratio'], 
+        test_ratio = args['test_ratio'], 
+        word_rate_method = args['word_rate_method'], 
+        layer_num = args['layer_num'], 
+        convolve_type = args['convolve_type'], 
+        duration_time_type = args['duration_time_type'], 
+        fmri_tr = args['fmri_tr'], 
+        fmri_voxel_num = args['fmri_voxel_num'], 
+        voxel_top_num = args['voxel_top_num'], 
+        feature_type = args['feature_type'], 
+        feature_abandon = args['feature_abandon'], 
+        n_story = args['n_story'], 
+        test_id = args['test_id'], 
+        continuation_top_k = args['continuation_top_k'], 
+        max_continuation = args['max_continuation'], 
+        top_p = args['top_p'], 
+        gpt_model_path = args['gpt_model_path'], 
+        gpt_type = args['gpt_type'], 
+        gpt_args = args['gpt_args'], 
+        use_cuda = args['use_cuda'], 
+        logging_file = args['logging_file'], 
+        plot_brain = args['plot_brain'], 
+        brain_template = args['brain_template'], 
+        **kwargs):
 
-                encoding_method = args['encoding_model']['encoding_method'],
-                block_shuffle = args['encoding_model']['block_shuffle'],
-                blocklen = args['encoding_model']['blocklen'],
-                nfold = args['encoding_model']['nfold'],
-                inner_fold = args['encoding_model']['inner_fold'],
-                train_ratio = args['encoding_model']['train_ratio'],
-                test_ratio = args['encoding_model']['test_ratio'],
+        Args = dict()
 
-                word_rate_method = args['word_rate']['word_rate_method'],
+        Args['fmri_path'] = fmri_path
+        Args['result_path'] = result_path
+        if not os.path.exists(result_path):
+            os.makedirs(result_path)
 
-                layer_num = args['feature_convolve']['layer_num'],
-                convolve_type = args['feature_convolve']['convolve_type'],
-                duration_time_type = args['feature_convolve']['duration_time_type'],
-                fmri_tr = args['data']['fmri_tr'],
-                fmri_tr_int = args['data']['fmri_tr_int'],
-                fmri_voxel_num = args['data']['fmri_voxel_num'],
-                voxel_top_num = args['data']['voxel_top_num'],
-                
-                feature_type = args['data']['feature_type'],
-                feature_abandon = args['data']['feature_abandon'],
-                n_story = args['data']['n_story'],
-                test_id = args['data']['test_id'],
-                
-                continuation_top_k = args['generate']['continuation_top_k'], 
-                max_continuation = args['generate']['max_continuation'],
-                top_p = args['generate']['top_p'],
-                gpt_model_path = args['generate']['gpt_model_path'],
-                gpt_type = args['generate']['gpt_type'],
-                gpt_args = args['generate']['gpt_args'],
-                use_cuda = args['exp']['use_cuda'],
-                logging_file = args['report']['logging_file'],
-                plot_brain = args['report']['plot_brain'],
-                brain_template = args['report']['brain_template'],
-            **kwargs):
+        Args['encoding_model_path'] = encoding_model_path
+        Args['fmri_feature_corrs_path'] = fmri_feature_corrs_path
+        Args['embedding_path'] = embedding_path
+        Args['feature_path'] = feature_path
+        Args['time_path'] = time_path
+        Args['ref_time_path'] = ref_time_path
+        Args['encoding_method'] = encoding_method
+        Args['block_shuffle'] = block_shuffle
+        Args['blocklen'] = blocklen
+        Args['nfold'] = nfold
+        Args['inner_fold'] = inner_fold
+        Args['train_ratio'] = train_ratio
+        Args['test_ratio'] = test_ratio
+        Args['word_rate_method'] = word_rate_method
+        Args['layer_num'] = layer_num
+        Args['convolve_type'] = convolve_type
+        Args['duration_time_type'] = duration_time_type
+        Args['fmri_tr'] = fmri_tr
+        Args['fmri_voxel_num'] = fmri_voxel_num
+        Args['voxel_top_num'] = voxel_top_num
+        Args['feature_type'] = feature_type
+        Args['feature_abandon'] = feature_abandon
+        Args['n_story'] = n_story
+        Args['test_id'] = test_id
+        Args['continuation_top_k'] = continuation_top_k
+        Args['max_continuation'] = max_continuation
+        Args['top_p'] = top_p
+        Args['gpt_model_path'] = gpt_model_path
+        Args['gpt_type'] = gpt_type
+        Args['gpt_args'] = gpt_args
+        Args['use_cuda'] = use_cuda
+        Args['logging_file'] = logging_file
+        Args['plot_brain'] = plot_brain
+        Args['brain_template'] = brain_template
 
-        self.args = all_args
+        logging.basicConfig(filename=logging_file, level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M', )
 
-        self.fmri_path = fmri_path
-        self.result_path = result_path
-        if not os.path.exists(self.result_path):
-            os.makedirs(self.result_path)
-        self.encoding_model_path = encoding_model_path
-        self.fmri_feature_corrs_path = fmri_feature_corrs_path
-        self.embedding_path = embedding_path
-        self.feature_path = feature_path
-        self.time_path = time_path
-        self.ref_time_path = ref_time_path
+        Args['ref_length'] = load_ref_TRs(ref_time_path)
+        Args['story_range'] = range(1, n_story + 1)
 
-        self.encoding_method = encoding_method
-        self.block_shuffle = block_shuffle
-        self.blocklen = blocklen
-        self.nfold = nfold
-        self.inner_fold = inner_fold
-        self.train_ratio = train_ratio
-        self.test_ratio = test_ratio
-
-        self.word_rate_method = word_rate_method
-
-        self.layer_num = layer_num
-        self.convolve_type = convolve_type
-        self.duration_time_type = duration_time_type
-        self.fmri_tr = fmri_tr
-        self.fmri_tr_int = fmri_tr_int
-        self.fmri_voxel_num = fmri_voxel_num
-        self.voxel_top_num = voxel_top_num
-        self.feature_type = feature_type
-        self.feature_abandon = feature_abandon
-        self.n_story = n_story
-        self.test_id = test_id
-        
-        self.continuation_top_k = continuation_top_k
-        self.max_continuation = max_continuation
-        self.top_p = top_p
-        self.gpt_model_path = gpt_model_path
-        self.gpt_type = gpt_type
-        self.gpt_args = gpt_args
-        self.use_cuda = use_cuda
-        self.logging_file = logging_file
-        self.plot_brain = plot_brain
-        self.brain_template = brain_template
-
-        logger = logging.getLogger('simpleExample')
-        logging.basicConfig(filename=logging_file, level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M', )
-        self.log = logger
-
-        self.ref_length = load_ref_TRs(ref_time_path)
-        self.story_range = range(1, n_story + 1)
-
-    def __call__(self, **kwargs):
-        return self.forward(**kwargs)
-
-    def forward(self, **kwargs):
-        pass
-
+        self.config = Args
 
 if __name__ == '__main__':
     a = Album()
-    print(a.log.info('test'))
-    
+    print(a.config)

@@ -1,17 +1,14 @@
 
 import scipy.io as scio
-import h5py
 import hdf5storage as hdf5
 import numpy as np
 from nilearn import glm
-import os
 from os.path import join
 from tqdm import tqdm
-from smn4_album import Album
 
 zs = lambda v: (v-v.mean())/v.std()
 
-class FeatureConvolver(Album):
+class FeatureConvolver():
     '''
         TIME of Word-time pairs and of fMRI-time pairs are not aligned. This model is used to solve this problem.
         After convolving, features will be aligned to fMRI. features: tr * dim, fmri: tr * n_voxel
@@ -20,11 +17,25 @@ class FeatureConvolver(Album):
             layer: layer_num, we only choose this layer as our feature.
             time_type: duration_time_type, only available when convolve_type == duration
     '''
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, 
+        convolve_type, 
+        layer_num, 
+        duration_time_type,
+        n_story, 
+        ref_length, 
+        fmri_tr, 
+    **convolve_config):
+    
+        self.convolve_type = convolve_type
+        self.layer_num = layer_num
+        self.duration_time_type = duration_time_type
+        self.n_story = n_story
+        self.ref_length = ref_length
+        self.fmri_tr = fmri_tr
+        self.fmri_tr_int = round(fmri_tr * 100)
         self.hrf = glm.first_level.spm_hrf(self.fmri_tr, self.fmri_tr_int)
 
-    def forward(self, if_save=True, **kwargs):
+    def forward(self, if_save, ):
         convolve_type = self.convolve_type
         layer = self.layer_num
         time_type = self.duration_time_type
@@ -116,8 +127,5 @@ class FeatureConvolver(Album):
 
             if if_save:
                 hdf5.writes({"word_time_pair": conv_series_ds.astype('float32')}, \
-                    join(self.result_path, f'story_{i}.mat'), matlab_compatible=True)
+                    join(self.feature_path, f'story_{i}.mat'), matlab_compatible=True)
 
-if __name__ == "__main__":
-    feature_convolver = FeatureConvolver(n_story=3)
-    feature_convolver(if_save=False)

@@ -1,14 +1,18 @@
 
-from tqdm import tqdm
-from smn4_album import Album
-from smn4_loader import FmriLoader
-import scipy.io as scio
+
+from .smn4_album import Album
+from .smn4_loader import FmriLoader
+from .concatenater import Concatenater
+from .ridge_regression import RidgeModel
+
+from scipy.io import loadmat
+from scipy.stats import zscore
 from os.path import join
 from functools import reduce
+from .smn4_utils import *
 import numpy as np
-from sklearn import linear_model
-
-zs = lambda v: (v-v.mean(0))/v.std(0)
+from tqdm import tqdm
+import pickle
 
 class WordRateModel(Album):
     '''
@@ -18,54 +22,43 @@ class WordRateModel(Album):
         tr_list: list of tr delays. For example, tr_list = [1,2,3], then we concatenate the response 
             from (t+1, t+2, t+3) to predict the word rate at time t.
     '''
-    def __init__(self, sub, tr_list, **kwargs) -> None:
+    def __init__(self, ridge_config, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.sub = sub
-        self.tr_list = tr_list
+        self.ridge_config = ridge_config
         self.fmri_loader = FmriLoader(**kwargs)
-
-    def ridge_delay(self, word_rates):
+        self.ridge_model = RidgeModel(**ridge_config, )
+        self.catter = Concatenater()
+        
+    def run(self, sub, tr_list, word_rates, ):
         '''
             cat fmri from tr_list, and return to Weight: fMRI_cat_features * Weight = Word_rate
-            ! need to be zscored
         '''
         
         fmri_loader = self.fmri_loader
-        fmri_datas, starts = fmri_loader(sub=self.sub)
-
+        word_rate_path = get_word_rate_model_path(sub, tr_list, self.result_path, **self.ridge_config)
         # cat fmri
-        tr_max = self.tr_list[-1]
-        fmri_data_cats = []
-        for i in tqdm(self.story_range, desc=f"time_delays = {[tr*self.fmri_tr for tr in self.tr_list]}, concatenating..."):
-            fmri_data = fmri_datas[starts[i-1]:starts[i], :]
-            fmri_data_cat = fmri_data[self.tr_list[0]:-tr_max+self.tr_list[0], :]
+        fmri_data_cats = np.array([])
+        for i in tqdm(self.story_range, desc=f"time_delays = {[tr * self.fmri_tr for tr in tr_list]}, concatenating..."):
+            # get fMRI data of each story
+            fmri_data = fmri_loader.load_one(sub, story=i)
+            fmri_data_cat = self.catter.cat(fmri_data, tr_list)
 
-            for tr in self.tr_list[1: ]:
-                if -tr_max+tr < 0:
-                    fmri_data_tmp = fmri_data[ tr:-tr_max+tr , :]
-                elif -tr_max+tr == 0: # avoid fmri_data[tr:0]
-                    fmri_data_tmp = fmri_data[ tr: , :]
-                fmri_data_cat = np.concatenate((fmri_data_cat, fmri_data_tmp), axis=1)
+            fmri_data_cats = np.concatenate((fmri_data_cats, fmri_data_cat), axis=0) if fmri_data_cats.any() \
+                else fmri_data_cat
 
-            # print(fmri_data_cat.shape)
-            fmri_data_cats.append(fmri_data_cat)
-
-        # cat fmri data of each story
-        fmri_train_data = reduce(lambda x, y: np.concatenate((x, y), axis=0), fmri_data_cats)
-        # cat word rate, and remember to remove the last tr of each word_rate array
-        word_rate_train = (reduce(lambda x, y: np.concatenate((x[:-tr_max], y), axis=0), word_rates))[:-tr_max]
-        # print(fmri_train_data.shape, word_rate_train.shape)
-
-        assert fmri_train_data.shape[0] == word_rate_train.shape[0]
-        # print(f"fmri_datas.shape = {fmri_train_data.shape}, word_rates.shape = {word_rate_train.shape}")
+        assert fmri_data_cats.shape[0] == word_rates.shape[0], \
+            f"fmri_datas.shape = {fmri_data_cats.shape}, word_rates.shape = {word_rates.shape}"
         
         # regression
-        reg = linear_model.Ridge(alpha= 1., )
-        reg.fit(fmri_train_data, word_rate_train, )
-        # print(reg.coef_)
-
+        ridge_model = self.ridge_model
+        self.log.info(f"Training word rate model, X.shape = {fmri_data_cats.shape}, y.shape = {word_rates.shape}")
+        ridge_cv, avg_corrs = ridge_model.ridge(X=fmri_data_cats, y=word_rates)
+        
+        self.log.info(f"{ridge_cv}, {avg_corrs}")
+        with open(word_rate_path, "wb") as f:
+            pickle.dump({"ridge_cv": ridge_cv, "avg_corrs": avg_corrs}, f)
+        
         return 
-
 
 class WordRateCounter(Album):
     '''
@@ -84,42 +77,46 @@ class WordRateCounter(Album):
         '''
         if self.word_rate_method == 'count_delays':
             return self.count_delays()
+        else:
+            return None
 
     def count_delays(self, ):
-        feature_abandon = self.feature_abandon
-
-        time_counts = []
+        time_counts = np.array([])
         for i in self.story_range:
-            time = scio.loadmat(join(self.time_path, f'story_{i}.mat'))
-            start_time = np.squeeze(time['start'])
-            start_time = np.round(start_time * 100).astype('int') # use rint to avoid some unexpected error as: int(1.13*100) = 112
-            end_time = np.squeeze(time['end'])
-            end_time = np.round(end_time * 100).astype('int') 
-
-            length = end_time[-1]
-            word_exist_times = np.zeros((length, )) # 0.01s
-
-            for t in end_time:
-                word_exist_times[t - 1] += 1
-
-            time_count = []
-            for tr in range(0, length, 71):
-                time_count.append(np.sum(word_exist_times[tr: tr + 71]))
-
-            time_count = time_count[feature_abandon: self.ref_length[i - 1] + feature_abandon]
-            # attention: because of this feature_abandon, word rate of the start (about 3 tr) is deleted.
-
-            time_count = np.array(time_count)
-            # print(time_count.shape)
-            time_counts.append(time_count)
+            time_count = self.count_delays_one(i, )
+            time_counts = np.concatenate((time_counts, time_count), )
         return time_counts
 
+    def count_delays_one(self, story, is_zscored=True):
+        '''
+            use `count_delay` on one story. 
 
-if __name__ == '__main__':
+            Arg:
+                is_zscored: results will be z-scored if True
+        '''
+        feature_abandon = self.feature_abandon
+        time = loadmat(join(self.time_path, f'story_{story}.mat'))
+        start_time = np.squeeze(time['start'])
+        start_time = np.round(start_time * 100).astype('int') # use rint to avoid some unexpected error as: int(1.13*100) = 112
+        end_time = np.squeeze(time['end'])
+        end_time = np.round(end_time * 100).astype('int') 
 
-    word_rate_counter = WordRateCounter(n_story=3)
-    word_rate_model = WordRateModel('01', [2,4,6,8,10,12], n_story=3, voxel_top_num=5000)
+        length = end_time[-1]
+        word_exist_times = np.zeros((length, )) # 0.01s
 
-    word_rates = word_rate_counter.count()
-    word_rate_model.ridge_delay(word_rates)
+        for t in end_time:
+            word_exist_times[t - 1] += 1
+
+        time_count = []
+        for tr in range(0, length, 71):
+            time_count.append(round(np.sum(word_exist_times[tr: tr + 71])))
+
+        # attention: because of this feature_abandon, word rate of the start (about 3 tr) is deleted.
+        time_count = np.array(time_count[feature_abandon: self.ref_length[story - 1] + feature_abandon])
+
+        # z-scored
+        time_count = zscore(time_count) if is_zscored \
+            else time_count
+
+        return time_count
 
